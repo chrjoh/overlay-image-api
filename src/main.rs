@@ -35,6 +35,11 @@ impl fmt::Display for Fade {
         write!(f, "{:.2}", self.0)
     }
 }
+impl PartialEq for Fade {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Rgb(u8, u8, u8);
@@ -61,6 +66,12 @@ impl FromStr for Rgb {
             .map_err(|_| "Invalid B value")?;
 
         Ok(Rgb(r, g, b))
+    }
+}
+
+impl PartialEq for Rgb {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
     }
 }
 
@@ -197,6 +208,76 @@ mod test {
         ) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
             ImageBuffer::from_pixel(1, 1, Rgba([255, 0, 0, 255]))
         }
+    }
+    #[test]
+    fn test_fade_from_str_valid() {
+        assert_eq!(Fade::from_str("0.5").unwrap(), Fade(0.5));
+        assert_eq!(Fade::from_str("1.0").unwrap(), Fade(1.0));
+        assert_eq!(Fade::from_str("0.0").unwrap(), Fade(0.0));
+    }
+
+    #[test]
+    fn test_fade_from_str_invalid() {
+        assert!(Fade::from_str("abc").is_err());
+        assert!(Fade::from_str("-0.1").is_err());
+        assert!(Fade::from_str("1.1").is_err());
+    }
+
+    #[test]
+    fn test_fade_display() {
+        let f = Fade(0.12345);
+        assert_eq!(format!("{}", f), "0.12");
+    }
+
+    #[test]
+    fn test_rgb_from_str_valid() {
+        assert_eq!(Rgb::from_str("255,0,128").unwrap(), Rgb(255, 0, 128));
+        assert_eq!(Rgb::from_str("  10 , 20 , 30 ").unwrap(), Rgb(10, 20, 30));
+    }
+
+    #[test]
+    fn test_rgb_from_str_invalid() {
+        assert!(Rgb::from_str("255,0").is_err());
+        assert!(Rgb::from_str("255,0,abc").is_err());
+        assert!(Rgb::from_str("255,0,256").is_err()); // 256 is out of u8 range
+    }
+
+    #[test]
+    fn test_gradient_type_serialization() {
+        let g = GradientType::DominantBottom;
+        let json = serde_json::to_string(&g).unwrap();
+        assert_eq!(json, "\"DominantBottom\"");
+
+        let parsed: GradientType = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, GradientType::DominantBottom);
+    }
+
+    #[test]
+    fn test_image_query_deserialization() {
+        let json = r#"{
+            "url": "https://example.com/image.jpg",
+            "gradient_variant": "UserDefined",
+            "rgb": "255,255,255",
+            "fade": "0.5"
+        }"#;
+
+        let query: ImageQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.url, "https://example.com/image.jpg");
+        assert_eq!(query.gradient_variant, GradientType::UserDefined);
+        assert_eq!(query.rgb, Some(Rgb(255, 255, 255)));
+        assert_eq!(query.fade, Some(Fade(0.5)));
+    }
+
+    #[test]
+    fn test_image_query_missing_optional_fields() {
+        let json = r#"{
+            "url": "https://example.com/image.jpg",
+            "gradient_variant": "Dominant"
+        }"#;
+
+        let query: ImageQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.rgb, None);
+        assert_eq!(query.fade, None);
     }
 
     #[actix_web::test]
