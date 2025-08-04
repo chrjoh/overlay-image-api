@@ -25,6 +25,12 @@ Generates a new image with an overlay based on the specified parameters.
 | `rgb`              | string | No       | Comma-separated RGB values (`r,g,b`) of type `u8`. Required for `UserDefined`. |
 | `fade`             | float  | No       | Value between `0.0` and `1.0` to control overlay transparency.                 |
 
+## Gradient Variants
+
+- `Dominant`: Uses the most dominant color from the entire image.
+- `DominantBottom`: Uses the most dominant color from the bottom row of the image.
+- `UserDefined`: Uses a user-specified RGB color. Requires the `rgb` parameter.
+
 ## Example Request
 
 ```http
