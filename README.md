@@ -31,6 +31,27 @@ Generates a new image with an overlay based on the specified parameters.
 - `DominantBottom`: Uses the most dominant color from the bottom row of the image.
 - `UserDefined`: Uses a user-specified RGB color. Requires the `rgb` parameter.
 
+### Overlay Fading Logic
+
+The overlay's transparency is dynamically calculated based on the vertical position of each pixel. The fading formula is:
+
+```rust
+let normalized_y = y as f32 / height as f32;
+let factor = if y > ((1.0 - 0.4) * height as f32 / 2.0).round() {
+    fade
+} else {
+    1.0
+};
+let distance_from_middle = (normalized_y - 0.4).abs() * 2.0;
+let alpha = factor * distance_from_middle.powf(2.0);
+```
+
+This means:
+
+- Pixels closer to the vertical center are more transparent.
+- Pixels near the top and bottom edges are more opaque.
+- The fade parameter controls how strong the fading effect is.
+
 ## Example Request
 
 ```http
