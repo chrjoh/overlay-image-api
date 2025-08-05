@@ -1,8 +1,8 @@
+use futures_util::StreamExt;
 use image::{ImageBuffer, Rgba, RgbaImage, load_from_memory};
 use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb, cast::from_component_slice};
 use reqwest;
-
 use std::time::Instant;
 
 /// The different options to create an gradient overly
@@ -38,15 +38,27 @@ impl Manager {
         fade: f32,
     ) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         let start = Instant::now();
-        let response = self.client.get(url).send().await.expect("failed to fetch");
+        let response = self
+            .client
+            .get(url)
+            .header("Accept-Encoding", "gzip, deflate")
+            .send()
+            .await
+            .expect("failed to fetch");
         let duration = start.elapsed();
         println!("Request took: {:?}", duration);
         let start = Instant::now();
-        let bytes = response.bytes().await.expect("Failed to load image data");
+        let content_length = response.content_length().unwrap_or(0) as usize;
+        let mut stream = response.bytes_stream();
+        let mut buffer: Vec<u8> = Vec::with_capacity(content_length);
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.expect("Failed to read chunk");
+            buffer.extend_from_slice(&chunk);
+        }
         let duration = start.elapsed();
         println!("get bytes took: {:?}", duration);
         let start = Instant::now();
-        let dynamic_img = load_from_memory(&bytes).expect("Failed to load image from memory");
+        let dynamic_img = load_from_memory(&buffer).expect("Failed to load image from memory");
         let img = dynamic_img.to_rgba8();
         let (width, height) = img.dimensions();
         let gradient_rgb = select_gradient_color(gradient_variant, width, height, &img);
