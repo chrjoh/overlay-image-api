@@ -2224,6 +2224,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "overlay-image-api"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "async-trait",
+ "env_logger",
+ "futures-util",
+ "httpmock",
+ "image",
+ "kmeans_colors",
+ "log",
+ "palette",
+ "rayon",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "palette"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3188,26 +3208,6 @@ dependencies = [
  "dirs-next",
  "rustversion",
  "winapi",
-]
-
-[[package]]
-name = "test-api"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "async-trait",
- "env_logger",
- "futures-util",
- "httpmock",
- "image",
- "kmeans_colors",
- "log",
- "palette",
- "rayon",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
