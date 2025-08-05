@@ -2,6 +2,7 @@ use futures_util::StreamExt;
 use image::{ImageBuffer, Rgba, RgbaImage, load_from_memory};
 use kmeans_colors::get_kmeans;
 use palette::{IntoColor, Lab, Srgb, cast::from_component_slice};
+use rayon::prelude::*;
 use reqwest;
 use std::time::Instant;
 
@@ -97,37 +98,41 @@ fn create_overlay_image(
     width: u32,
     height: u32,
     gradient_rgb: Srgb<u8>,
-    img: image::ImageBuffer<Rgba<u8>, Vec<u8>>,
+    img: ImageBuffer<Rgba<u8>, Vec<u8>>,
     fade: f32,
-) -> image::ImageBuffer<Rgba<u8>, Vec<u8>> {
+) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
     let mut output = RgbaImage::new(width, height);
-    for y in 0..height {
-        // bottom - middle -top
-        let normalized_y = y as f32 / height as f32;
-        let factor = if y as f32 > ((1.0 - 0.4) * height as f32 / 2f32).round() {
-            fade
-        } else {
-            1.0
-        };
-        // if 0.5 0 at middle, 1 at top/bottom, otherwise shift position toward top/bottom
-        let distance_from_middle = (normalized_y - 0.4).abs() * 2.0;
-        let alpha = factor * distance_from_middle.powf(2.0);
 
-        // bottom to top
-        //let alpha = (y as f32 / height as f32).powf(2.0);
-        let overlay = Rgba([
-            gradient_rgb.red,
-            gradient_rgb.green,
-            gradient_rgb.blue,
-            (alpha * 255.0) as u8,
-        ]);
+    output
+        .enumerate_rows_mut()
+        .par_bridge()
+        .for_each(|(y, row)| {
+            let normalized_y = y as f32 / height as f32;
+            let factor = if y as f32 > ((1.0 - 0.4) * height as f32 / 2f32).round() {
+                fade
+            } else {
+                1.0
+            };
+            // if 0.5 0 at middle, 1 at top/bottom, otherwise shift position toward top/bottom
+            let distance_from_middle = (normalized_y - 0.4).abs() * 2.0;
+            let alpha = factor * distance_from_middle.powf(2.0);
 
-        for x in 0..width {
-            let base = img.get_pixel(x, y);
-            let blended = blend_pixels(*base, overlay);
-            output.put_pixel(x, y, blended);
-        }
-    }
+            // bottom to top
+            //let alpha = (y as f32 / height as f32).powf(2.0);
+            let overlay = Rgba([
+                gradient_rgb.red,
+                gradient_rgb.green,
+                gradient_rgb.blue,
+                (alpha * 255.0) as u8,
+            ]);
+
+            for (x, _, pixel) in row {
+                let base = img.get_pixel(x, y);
+                let blended = blend_pixels(*base, overlay);
+                *pixel = blended;
+            }
+        });
+
     output
 }
 

@@ -16,8 +16,8 @@ reqwest = { version = "0.12.20", features = ["stream", "gzip"] }
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.88"
 futures-util = "0.3.31"
+rayon = "1.10.0"
 
 
 [dev-dependencies]
-tempfile = "3"
 httpmock = "0.7.0"
