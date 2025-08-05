@@ -48,8 +48,8 @@ let alpha = factor * distance_from_middle.powf(2.0);
 
 This means:
 
-- Pixels closer to the vertical center are more transparent.
-- Pixels near the top and bottom edges are more opaque.
+- Overlay pixels closer to the vertical center are more transparent.
+- Overlay pixels near the top and bottom edges are more opaque.
 - The fade parameter controls how strong the fading effect is.
 
 ## Example Request
