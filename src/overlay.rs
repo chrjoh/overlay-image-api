@@ -14,33 +14,47 @@ pub enum GradientColorType {
     DominantBottom,
     UserSelected(u8, u8, u8),
 }
-///
-/// Fetch an imge from the given url and create a new image with the specified overlay
-/// and save the image to disk
-/// The overlay is constucted to got from the botom to 60% of the image hight where it will be no
-/// overlay and up to the top increasing the overlay color
-pub async fn generate_from_url(
-    url: String,
-    gradient_variant: GradientColorType,
-    fade: f32,
-) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-    let start = Instant::now();
-    let response = reqwest::get(url).await.expect("Failed to fetch image");
-    let duration = start.elapsed();
-    println!("Request took: {:?}", duration);
-    let start = Instant::now();
-    let bytes = response.bytes().await.expect("Failed to load image data");
-    let duration = start.elapsed();
-    println!("get bytes took: {:?}", duration);
-    let start = Instant::now();
-    let dynamic_img = load_from_memory(&bytes).expect("Failed to load image from memory");
-    let img = dynamic_img.to_rgba8();
-    let (width, height) = img.dimensions();
-    let gradient_rgb = select_gradient_color(gradient_variant, width, height, &img);
-    let img = create_overlay_image(width, height, gradient_rgb, img, fade);
-    let duration = start.elapsed();
-    println!("create image took: {:?}", duration);
-    img
+pub struct Manager {
+    client: reqwest::Client,
+}
+
+impl Manager {
+    pub fn build() -> Self {
+        let client = reqwest::Client::builder()
+            .pool_max_idle_per_host(8)
+            .build()
+            .expect("Failed to build client");
+        Self { client }
+    }
+    ///
+    /// Fetch an imge from the given url and create a new image with the specified overlay
+    /// and save the image to disk
+    /// The overlay is constucted to got from the botom to 60% of the image hight where it will be no
+    /// overlay and up to the top increasing the overlay color
+    pub async fn generate_from_url(
+        &self,
+        url: String,
+        gradient_variant: GradientColorType,
+        fade: f32,
+    ) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+        let start = Instant::now();
+        let response = self.client.get(url).send().await.expect("failed to fetch");
+        let duration = start.elapsed();
+        println!("Request took: {:?}", duration);
+        let start = Instant::now();
+        let bytes = response.bytes().await.expect("Failed to load image data");
+        let duration = start.elapsed();
+        println!("get bytes took: {:?}", duration);
+        let start = Instant::now();
+        let dynamic_img = load_from_memory(&bytes).expect("Failed to load image from memory");
+        let img = dynamic_img.to_rgba8();
+        let (width, height) = img.dimensions();
+        let gradient_rgb = select_gradient_color(gradient_variant, width, height, &img);
+        let img = create_overlay_image(width, height, gradient_rgb, img, fade);
+        let duration = start.elapsed();
+        println!("create image took: {:?}", duration);
+        img
+    }
 }
 
 fn select_gradient_color(
@@ -162,11 +176,13 @@ mod tests {
                 .header("Content-Type", "image/png")
                 .body(buf.clone());
         });
-
+        let manager = Manager::build();
         let url = format!("{}/test-image", server.url(""));
-        let result = generate_from_url(url, GradientColorType::UserSelected(50, 50, 50), 1.0).await;
+        let result = manager
+            .generate_from_url(url, GradientColorType::UserSelected(50, 50, 50), 1.0)
+            .await;
 
-        // Assert the output file exists and is a valid image
+        // Assert the output is a valid image
         assert_eq!(result.dimensions(), (2, 2));
     }
 

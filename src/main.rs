@@ -108,7 +108,9 @@ pub trait ImageGenerator: Send + Sync {
     ) -> ImageBuffer<Rgba<u8>, Vec<u8>>;
 }
 
-pub struct RealImageGenerator;
+pub struct RealImageGenerator {
+    manager: overlay::Manager,
+}
 
 #[async_trait]
 impl ImageGenerator for RealImageGenerator {
@@ -118,7 +120,9 @@ impl ImageGenerator for RealImageGenerator {
         gradient_variant: overlay::GradientColorType,
         fade: f32,
     ) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-        overlay::generate_from_url(url, gradient_variant, fade).await
+        self.manager
+            .generate_from_url(url, gradient_variant, fade)
+            .await
     }
 }
 
@@ -172,8 +176,8 @@ async fn image_handler(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-
-    let generator: Arc<dyn ImageGenerator> = Arc::new(RealImageGenerator);
+    let manager = overlay::Manager::build();
+    let generator: Arc<dyn ImageGenerator> = Arc::new(RealImageGenerator { manager });
 
     log::info!("starting HTTP server at http://localhost:8080");
 
