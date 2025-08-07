@@ -43,8 +43,8 @@ impl PartialEq for Fade {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
-struct Rgb(u8, u8, u8);
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, ToSchema)]
+pub struct Rgb(pub String);
 
 impl FromStr for Rgb {
     type Err = String;
@@ -54,26 +54,24 @@ impl FromStr for Rgb {
         if parts.len() != 3 {
             return Err("Expected format: R,G,B".into());
         }
-        let r = parts[0]
-            .trim()
-            .parse::<u8>()
-            .map_err(|_| "Invalid R value")?;
-        let g = parts[1]
-            .trim()
-            .parse::<u8>()
-            .map_err(|_| "Invalid G value")?;
-        let b = parts[2]
-            .trim()
-            .parse::<u8>()
-            .map_err(|_| "Invalid B value")?;
 
-        Ok(Rgb(r, g, b))
+        for part in &parts {
+            part.trim().parse::<u8>().map_err(|_| "Invalid RGB value")?;
+        }
+        Ok(Rgb(s.to_string()))
     }
 }
 
-impl PartialEq for Rgb {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
+impl Rgb {
+    pub fn to_tuple(&self) -> Result<(u8, u8, u8), String> {
+        let parts: Vec<&str> = self.0.split(',').collect();
+        if parts.len() != 3 {
+            return Err("Expected format: R,G,B".into());
+        }
+        let r = parts[0].trim().parse::<u8>().map_err(|_| "Invalid R")?;
+        let g = parts[1].trim().parse::<u8>().map_err(|_| "Invalid G")?;
+        let b = parts[2].trim().parse::<u8>().map_err(|_| "Invalid B")?;
+        Ok((r, g, b))
     }
 }
 
@@ -134,7 +132,7 @@ impl ImageGenerator for RealImageGenerator {
     params(
         ("url" = String, Query, description = "Image URL"),
         ("gradient_variant" = GradientType, Query, description = "Gradient type"),
-        ("rgb" = Option<Rgb>, Query, description = "RGB values for user-defined gradient"),
+        ("rgb" = Option<Rgb>, Query, description = "Three RGB values (0-255) for user-defined gradient: r,g,b"),
         ("fade" = Option<Fade>, Query, description = "Fade value between 0.0 and 1.0")
     ),
     responses(
@@ -166,7 +164,8 @@ pub async fn image_handler(
         GradientType::DominantBottom => overlay::GradientColorType::DominantBottom,
         GradientType::UserDefined => {
             if let Some(rgb) = query.rgb {
-                overlay::GradientColorType::UserSelected(rgb.0, rgb.1, rgb.2)
+                let (r, g, b) = rgb.to_tuple().unwrap();
+                overlay::GradientColorType::UserSelected(r, g, b)
             } else {
                 return HttpResponse::BadRequest()
                     .body("Missing mandatory rgb values for user defined gradient");
@@ -268,8 +267,14 @@ mod test {
 
     #[test]
     fn test_rgb_from_str_valid() {
-        assert_eq!(Rgb::from_str("255,0,128").unwrap(), Rgb(255, 0, 128));
-        assert_eq!(Rgb::from_str("  10 , 20 , 30 ").unwrap(), Rgb(10, 20, 30));
+        assert_eq!(Rgb::from_str("255,0,128").unwrap(), Rgb("255,0,128".into()));
+        assert_eq!(
+            Rgb::from_str("  10 , 20 , 30 ")
+                .unwrap()
+                .to_tuple()
+                .unwrap(),
+            (10, 20, 30)
+        );
     }
 
     #[test]
@@ -301,7 +306,7 @@ mod test {
         let query: ImageQuery = serde_json::from_str(json).unwrap();
         assert_eq!(query.url, "https://example.com/image.jpg");
         assert_eq!(query.gradient_variant, GradientType::UserDefined);
-        assert_eq!(query.rgb, Some(Rgb(255, 255, 255)));
+        assert_eq!(query.rgb, Some(Rgb("255,255,255".into())));
         assert_eq!(query.fade, Some(Fade(0.5)));
     }
 
