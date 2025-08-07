@@ -58,4 +58,10 @@ This means:
 GET /image?url=https:%2F%2Fimg.example.com%2Fimage.jpg&gradient_variant=UserDefined&rgb=50,50,150&fade=0.5
 ```
 
+Swagger documentation is found at
+
+```http
+GET /swagger-ui/
+```
+
 This request applies a semi-transparent overlay using the RGB color (50, 50, 150) to the image at the specified URL.

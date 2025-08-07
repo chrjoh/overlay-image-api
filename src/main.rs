@@ -8,16 +8,18 @@ use std::fmt;
 use std::io::Cursor;
 use std::str::FromStr;
 use std::sync::Arc;
+use utoipa::{OpenApi, ToSchema};
+use utoipa_swagger_ui::SwaggerUi;
 
 mod overlay;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, ToSchema)]
 enum GradientType {
     Dominant,
     DominantBottom,
     UserDefined,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 struct Fade(f32);
 
 impl FromStr for Fade {
@@ -41,7 +43,7 @@ impl PartialEq for Fade {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 struct Rgb(u8, u8, u8);
 
 impl FromStr for Rgb {
@@ -75,7 +77,7 @@ impl PartialEq for Rgb {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 struct ImageQuery {
     url: String,
     gradient_variant: GradientType,
@@ -126,7 +128,23 @@ impl ImageGenerator for RealImageGenerator {
     }
 }
 
-async fn image_handler(
+#[utoipa::path(
+    get,
+    path = "/image",
+    params(
+        ("url" = String, Query, description = "Image URL"),
+        ("gradient_variant" = GradientType, Query, description = "Gradient type"),
+        ("rgb" = Option<Rgb>, Query, description = "RGB values for user-defined gradient"),
+        ("fade" = Option<Fade>, Query, description = "Fade value between 0.0 and 1.0")
+    ),
+    responses(
+        (status = 200, description = "PNG image returned"),
+        (status = 400, description = "Invalid query parameters"),
+        (status = 500, description = "Image generation failed")
+    )
+)]
+
+pub async fn image_handler(
     req: actix_web::HttpRequest,
     generator: web::Data<dyn ImageGenerator>,
 ) -> HttpResponse {
@@ -173,6 +191,13 @@ async fn image_handler(
     }
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    paths(image_handler),
+    components(schemas(ImageQuery, GradientType, Rgb, Fade))
+)]
+pub struct ApiDoc;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -187,6 +212,14 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .app_data(web::Data::from(generator.clone()))
             .service(web::resource("/image").route(web::get().to(image_handler)))
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-doc/openapi.json", ApiDoc::openapi()),
+            )
+            .route(
+                "/api-doc/openapi.json",
+                web::get().to(|| async { web::Json(ApiDoc::openapi()) }),
+            )
     })
     .bind(("127.0.0.1", 8080))?
     .run()
