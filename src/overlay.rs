@@ -39,13 +39,7 @@ impl Manager {
         fade: f32,
     ) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         let start = Instant::now();
-        let response = self
-            .client
-            .get(url)
-            .header("Accept-Encoding", "gzip, deflate")
-            .send()
-            .await
-            .expect("failed to fetch");
+        let response = self.client.get(url).send().await.expect("failed to fetch");
         let duration = start.elapsed();
         println!("Request took: {:?}", duration);
         let start = Instant::now();
@@ -59,14 +53,17 @@ impl Manager {
         let duration = start.elapsed();
         println!("get bytes took: {:?}", duration);
         let start = Instant::now();
-        let dynamic_img = load_from_memory(&buffer).expect("Failed to load image from memory");
-        let img = dynamic_img.to_rgba8();
-        let (width, height) = img.dimensions();
-        let gradient_rgb = select_gradient_color(gradient_variant, width, height, &img);
-        let img = create_overlay_image(width, height, gradient_rgb, img, fade);
+        let img = tokio::task::spawn_blocking(move || {
+            let dynamic_img = load_from_memory(&buffer).expect("Failed to load image from memory");
+            let img = dynamic_img.to_rgba8();
+            let (width, height) = img.dimensions();
+            let gradient_rgb = select_gradient_color(gradient_variant, width, height, &img);
+            create_overlay_image(width, height, gradient_rgb, img, fade)
+        })
+        .await;
         let duration = start.elapsed();
         println!("create image took: {:?}", duration);
-        img
+        img.unwrap()
     }
 }
 
